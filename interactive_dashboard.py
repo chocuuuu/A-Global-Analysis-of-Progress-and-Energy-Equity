@@ -9,9 +9,9 @@ def generate_interactive_dashboard(df):
     Prints detailed data insights to the console for analysis.
     """
     print("Generating interactive dashboard (Plotly)...")
-    print("\n" + "="*50)
-    print("DASHBOARD DATA INSIGHTS & SUMMARY STATISTICS")
-    print("="*50)
+    print("\n" + "="*60)
+    print("DASHBOARD DATA INSIGHTS & GRANULAR STATISTICS")
+    print("="*60)
     
     # 1. Create Individual Figures & Print Details
     fig_map = _create_map(df)
@@ -20,7 +20,7 @@ def generate_interactive_dashboard(df):
     fig_bubble = _create_bubble_chart(df)
     fig_comparison = _create_country_comparison(df)
 
-    print("="*50 + "\n")
+    print("="*60 + "\n")
 
     # 2. Assemble into HTML
     html_content = _assemble_html(fig_map, fig_equity, fig_aid, fig_bubble, fig_comparison)
@@ -38,13 +38,26 @@ def _create_map(df):
     """Global Map of Renewable Capacity (Latest Year)."""
     latest_year = df['Year'].max()
     df_latest = df[df['Year'] == latest_year].copy()
+    total_count = len(df_latest)
     
     # Data Insights
-    print(f"\n--- [1. Global Map] Renewable Capacity ({latest_year}) ---")
-    top_5 = df_latest.nlargest(5, 'Renewable_Capacity')[['Country', 'Renewable_Capacity']]
-    print("Top 5 Countries (Watts/capita):")
-    print(top_5.to_string(index=False))
+    print(f"\n--- [1. Global Map] Renewable Capacity Distribution ({latest_year}) ---")
+    print(f"Global Average Capacity: {df_latest['Renewable_Capacity'].mean():.2f} W/capita")
     
+    # Bucket Analysis
+    high = len(df_latest[df_latest['Renewable_Capacity'] > 500])
+    med = len(df_latest[(df_latest['Renewable_Capacity'] <= 500) & (df_latest['Renewable_Capacity'] > 50)])
+    low = len(df_latest[df_latest['Renewable_Capacity'] <= 50])
+    
+    print(f"Distribution Buckets:")
+    print(f"  > 500 W/capita (High):   {high} countries ({high/total_count:.1%})")
+    print(f"  50-500 W/capita (Med):   {med} countries ({med/total_count:.1%})")
+    print(f"  < 50 W/capita (Low):     {low} countries ({low/total_count:.1%})")
+
+    print("\nTop 5 Leaders (Watts/capita):")
+    top_5 = df_latest.nlargest(5, 'Renewable_Capacity')[['Country', 'Renewable_Capacity']]
+    print(top_5.to_string(index=False))
+
     fig = px.choropleth(df_latest, 
                         locations="Country", 
                         locationmode='country names',
@@ -61,13 +74,54 @@ def _create_equity_plot(df):
     global_trends = df.groupby('Year')[['Access_Electricity', 'Access_Cooking']].mean().reset_index()
     
     # Data Insights
-    print(f"\n--- [2. Equity Chart] Global Access Trends ---")
-    start_row = global_trends.iloc[0]
-    end_row = global_trends.iloc[-1]
-    print(f"Year {int(start_row['Year'])}: Elec={start_row['Access_Electricity']:.1f}%, Cooking={start_row['Access_Cooking']:.1f}%")
-    print(f"Year {int(end_row['Year'])}: Elec={end_row['Access_Electricity']:.1f}%, Cooking={end_row['Access_Cooking']:.1f}%")
-    gap_2020 = end_row['Access_Electricity'] - end_row['Access_Cooking']
-    print(f"Final Equity Gap (2020): {gap_2020:.2f}% points")
+    print(f"\n--- [2. Equity Chart] The 'Hidden Gap' Analysis ---")
+    
+    # Calculate CAGR (Compound Annual Growth Rate)
+    years = 20
+    start_elec = global_trends.iloc[0]['Access_Electricity']
+    end_elec = global_trends.iloc[-1]['Access_Electricity']
+    cagr_elec = ((end_elec / start_elec) ** (1/years) - 1) * 100
+
+    start_cook = global_trends.iloc[0]['Access_Cooking']
+    end_cook = global_trends.iloc[-1]['Access_Cooking']
+    cagr_cook = ((end_cook / start_cook) ** (1/years) - 1) * 100
+    
+    print(f"Global Growth Rates (CAGR 2000-2020):")
+    print(f"  Electricity Access: {cagr_elec:+.2f}% per year")
+    print(f"  Clean Cooking:      {cagr_cook:+.2f}% per year")
+    print(f"  -> Insight: Electricity is growing {cagr_elec/cagr_cook:.1f}x faster than clean cooking.")
+
+    # Identify Worst Gaps in 2020 AND their trends
+    df_2020 = df[df['Year'] == 2020].copy()
+    
+    if not df_2020.empty:
+        df_2020['Equity_Gap'] = df_2020['Access_Electricity'] - df_2020['Access_Cooking']
+        top_gaps = df_2020.nlargest(5, 'Equity_Gap')[['Country', 'Access_Electricity', 'Access_Cooking', 'Equity_Gap']]
+        
+        # Calculate change since 2000 for these specific countries
+        print("\nTop 5 Countries with Largest Equity Gap (2020):")
+        print("(Negative 'Trend' means the gap is closing, Positive means it is widening)")
+        
+        results = []
+        for _, row in top_gaps.iterrows():
+            country = row['Country']
+            gap_2020 = row['Equity_Gap']
+            
+            # Find 2000 gap
+            try:
+                data_2000 = df[(df['Country'] == country) & (df['Year'] == 2000)]
+                if not data_2000.empty:
+                    gap_2000 = data_2000.iloc[0]['Access_Electricity'] - data_2000.iloc[0]['Access_Cooking']
+                    change = gap_2020 - gap_2000
+                    results.append({'Country': country, 'Gap_2020': gap_2020, 'Trend_since_2000': change})
+                else:
+                    results.append({'Country': country, 'Gap_2020': gap_2020, 'Trend_since_2000': float('nan')})
+            except:
+                continue
+                
+        results_df = pd.DataFrame(results)
+        pd.options.display.float_format = '{:,.2f}'.format
+        print(results_df.to_string(index=False))
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=global_trends['Year'], y=global_trends['Access_Electricity'],
@@ -97,16 +151,18 @@ def _create_aid_plot(df):
     subset = subset.dropna(subset=['GDP_Capita'])
     
     # Data Insights
-    print(f"\n--- [3. Aid Scatter] Financial Flows vs. Capacity Growth ---")
-    print(f"Number of Aid Recipients analyzed: {len(subset)}")
-    if len(subset) > 1:
-        corr = subset['Financial_Flows'].corr(subset['Renewable_Capacity'])
-        print(f"Correlation Coefficient: {corr:.4f}")
+    print(f"\n--- [3. Aid Scatter] ROI & Efficiency Analysis ---")
+    print(f"Total Aid Analyzed: ${subset['Financial_Flows'].sum()/1e9:,.1f} Billion")
     
-    top_recipient = subset.nlargest(1, 'Financial_Flows').iloc[0]
-    print(f"Top Recipient: {top_recipient['Country']}")
-    print(f"  - Total Aid: ${top_recipient['Financial_Flows']:,.0f}")
-    print(f"  - Capacity Growth: {top_recipient['Renewable_Capacity']:.2f} W/capita")
+    # Count "Inefficient" cases
+    # Received > $50M aid but has <= 0 W/capita growth
+    inefficient = subset[(subset['Financial_Flows'] > 5e7) & (subset['Renewable_Capacity'] <= 0)]
+    
+    print(f"\n'Ghost Aid' Alert (High Aid, Zero/Negative Growth):")
+    print(f"Found {len(inefficient)} countries that received >$50M but stalled or regressed.")
+    if not inefficient.empty:
+        inefficient_sorted = inefficient.sort_values('Financial_Flows', ascending=False).head(5)
+        print(inefficient_sorted[['Country', 'Financial_Flows', 'Renewable_Capacity']].to_string(index=False))
 
     if subset.empty:
         fig = go.Figure()
@@ -128,12 +184,33 @@ def _create_bubble_chart(df):
     df_clean = df.dropna(subset=['GDP_Capita', 'CO2_Total_kt', 'Year', 'Country', 'Access_Electricity']).copy()
     
     # Data Insights
-    print(f"\n--- [4. Bubble Chart] GDP vs CO2 Animation ---")
-    print(f"Data points included: {len(df_clean)}")
-    print(f"Unique Countries: {df_clean['Country'].nunique()}")
-    min_co2 = df_clean['CO2_Total_kt'].min()
-    max_co2 = df_clean['CO2_Total_kt'].max()
-    print(f"CO2 Range: {min_co2:.2f} to {max_co2:,.2f} kt")
+    print(f"\n--- [4. Bubble Chart] Decoupling Analysis ---")
+    
+    # Calculate Carbon Intensity (CO2 per $ GDP)
+    df_clean['Carbon_Intensity'] = df_clean['CO2_Total_kt'] / df_clean['GDP_Capita']
+    
+    latest_year = df_clean['Year'].max()
+    earliest_year = df_clean['Year'].min()
+    
+    # Identify countries bucking the trend (Increasing Intensity)
+    # Calculate change per country
+    intensity_change = []
+    for country in df_clean['Country'].unique():
+        c_data = df_clean[df_clean['Country'] == country]
+        if len(c_data) > 1:
+            start = c_data.iloc[0]['Carbon_Intensity']
+            end = c_data.iloc[-1]['Carbon_Intensity']
+            change_pct = ((end - start) / start) * 100
+            intensity_change.append({'Country': country, 'Intensity_Change_Pct': change_pct})
+    
+    intensity_df = pd.DataFrame(intensity_change)
+    avg_change = intensity_df['Intensity_Change_Pct'].mean()
+    
+    print(f"Global Average Carbon Intensity Change ({earliest_year}-{latest_year}): {avg_change:+.2f}%")
+    
+    print("\nOutliers: Countries Becoming LESS Efficient (Increasing Intensity):")
+    worsening = intensity_df.nlargest(5, 'Intensity_Change_Pct')
+    print(worsening.to_string(index=False))
 
     if df_clean.empty:
          fig = go.Figure()
@@ -154,13 +231,19 @@ def _create_bubble_chart(df):
 
 def _create_country_comparison(df):
     """Line chart with Dropdown to compare specific countries."""
-    top_countries = ['China', 'India', 'United States', 'Brazil', 'Nigeria', 'Germany', 'Indonesia', 'Pakistan']
-    df_sub = df[df['Country'].isin(top_countries)].sort_values('Year')
     
-    # Data Insights
-    print(f"\n--- [5. Comparison Chart] Selected Country Stats (2020) ---")
-    stats_2020 = df_sub[df_sub['Year'] == 2020][['Country', 'Access_Electricity', 'Access_Cooking', 'Renewable_Capacity']]
-    print(stats_2020.to_string(index=False))
+    # Calculate Top Movers globally, not just selected ones
+    # Calculate total growth 2000-2020 for all countries
+    df_growth = df.groupby('Country')['Access_Electricity'].agg(['first', 'last']).reset_index()
+    df_growth['Growth'] = df_growth['last'] - df_growth['first']
+    
+    print(f"\n--- [5. Comparison Chart] Fastest Electrifying Nations (2000-2020) ---")
+    top_movers = df_growth.nlargest(5, 'Growth')
+    print(top_movers.to_string(index=False))
+
+    # For the chart, we stick to a curated list for readability
+    top_countries = ['China', 'India', 'United States', 'Brazil', 'Nigeria', 'Germany', 'Indonesia', 'Pakistan', 'Afghanistan', 'Cambodia']
+    df_sub = df[df['Country'].isin(top_countries)].sort_values('Year')
 
     fig = px.line(df_sub, x='Year', y='Access_Electricity', color='Country',
                   title="Country Deep Dive: Electricity Access",
