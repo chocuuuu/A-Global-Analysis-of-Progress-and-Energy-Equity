@@ -1,4 +1,3 @@
-# filename: interactive_dashboard.py
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -7,15 +6,21 @@ import os
 def generate_interactive_dashboard(df):
     """
     Creates a comprehensive interactive HTML dashboard with multiple Plotly charts.
+    Prints detailed data insights to the console for analysis.
     """
     print("Generating interactive dashboard (Plotly)...")
+    print("\n" + "="*50)
+    print("DASHBOARD DATA INSIGHTS & SUMMARY STATISTICS")
+    print("="*50)
     
-    # 1. Create Individual Figures
+    # 1. Create Individual Figures & Print Details
     fig_map = _create_map(df)
     fig_equity = _create_equity_plot(df)
     fig_aid = _create_aid_plot(df)
     fig_bubble = _create_bubble_chart(df)
     fig_comparison = _create_country_comparison(df)
+
+    print("="*50 + "\n")
 
     # 2. Assemble into HTML
     html_content = _assemble_html(fig_map, fig_equity, fig_aid, fig_bubble, fig_comparison)
@@ -32,7 +37,13 @@ def generate_interactive_dashboard(df):
 def _create_map(df):
     """Global Map of Renewable Capacity (Latest Year)."""
     latest_year = df['Year'].max()
-    df_latest = df[df['Year'] == latest_year]
+    df_latest = df[df['Year'] == latest_year].copy()
+    
+    # Data Insights
+    print(f"\n--- [1. Global Map] Renewable Capacity ({latest_year}) ---")
+    top_5 = df_latest.nlargest(5, 'Renewable_Capacity')[['Country', 'Renewable_Capacity']]
+    print("Top 5 Countries (Watts/capita):")
+    print(top_5.to_string(index=False))
     
     fig = px.choropleth(df_latest, 
                         locations="Country", 
@@ -49,6 +60,15 @@ def _create_equity_plot(df):
     """Interactive Equity Gap Line Chart."""
     global_trends = df.groupby('Year')[['Access_Electricity', 'Access_Cooking']].mean().reset_index()
     
+    # Data Insights
+    print(f"\n--- [2. Equity Chart] Global Access Trends ---")
+    start_row = global_trends.iloc[0]
+    end_row = global_trends.iloc[-1]
+    print(f"Year {int(start_row['Year'])}: Elec={start_row['Access_Electricity']:.1f}%, Cooking={start_row['Access_Cooking']:.1f}%")
+    print(f"Year {int(end_row['Year'])}: Elec={end_row['Access_Electricity']:.1f}%, Cooking={end_row['Access_Cooking']:.1f}%")
+    gap_2020 = end_row['Access_Electricity'] - end_row['Access_Cooking']
+    print(f"Final Equity Gap (2020): {gap_2020:.2f}% points")
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=global_trends['Year'], y=global_trends['Access_Electricity'],
                              mode='lines+markers', name='Electricity Access',
@@ -76,8 +96,19 @@ def _create_aid_plot(df):
     # FIX: Drop NaNs in 'GDP_Capita' because it is used for the 'size' property
     subset = subset.dropna(subset=['GDP_Capita'])
     
+    # Data Insights
+    print(f"\n--- [3. Aid Scatter] Financial Flows vs. Capacity Growth ---")
+    print(f"Number of Aid Recipients analyzed: {len(subset)}")
+    if len(subset) > 1:
+        corr = subset['Financial_Flows'].corr(subset['Renewable_Capacity'])
+        print(f"Correlation Coefficient: {corr:.4f}")
+    
+    top_recipient = subset.nlargest(1, 'Financial_Flows').iloc[0]
+    print(f"Top Recipient: {top_recipient['Country']}")
+    print(f"  - Total Aid: ${top_recipient['Financial_Flows']:,.0f}")
+    print(f"  - Capacity Growth: {top_recipient['Renewable_Capacity']:.2f} W/capita")
+
     if subset.empty:
-        # Return empty figure if no data remains after filtering
         fig = go.Figure()
         fig.update_layout(title="No Data Available for Aid Plot")
         return fig
@@ -94,9 +125,16 @@ def _create_aid_plot(df):
 
 def _create_bubble_chart(df):
     """Animated Bubble Chart: GDP vs CO2."""
-    # Drop NaNs from ALL columns used, including the size column (Access_Electricity)
     df_clean = df.dropna(subset=['GDP_Capita', 'CO2_Total_kt', 'Year', 'Country', 'Access_Electricity']).copy()
     
+    # Data Insights
+    print(f"\n--- [4. Bubble Chart] GDP vs CO2 Animation ---")
+    print(f"Data points included: {len(df_clean)}")
+    print(f"Unique Countries: {df_clean['Country'].nunique()}")
+    min_co2 = df_clean['CO2_Total_kt'].min()
+    max_co2 = df_clean['CO2_Total_kt'].max()
+    print(f"CO2 Range: {min_co2:.2f} to {max_co2:,.2f} kt")
+
     if df_clean.empty:
          fig = go.Figure()
          fig.update_layout(title="No Data Available for Bubble Chart")
@@ -119,6 +157,11 @@ def _create_country_comparison(df):
     top_countries = ['China', 'India', 'United States', 'Brazil', 'Nigeria', 'Germany', 'Indonesia', 'Pakistan']
     df_sub = df[df['Country'].isin(top_countries)].sort_values('Year')
     
+    # Data Insights
+    print(f"\n--- [5. Comparison Chart] Selected Country Stats (2020) ---")
+    stats_2020 = df_sub[df_sub['Year'] == 2020][['Country', 'Access_Electricity', 'Access_Cooking', 'Renewable_Capacity']]
+    print(stats_2020.to_string(index=False))
+
     fig = px.line(df_sub, x='Year', y='Access_Electricity', color='Country',
                   title="Country Deep Dive: Electricity Access",
                   markers=True)
