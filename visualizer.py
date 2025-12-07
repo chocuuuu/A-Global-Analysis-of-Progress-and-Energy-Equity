@@ -1,6 +1,7 @@
 # filename: visualizer.py
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 import os
 
 # Set global style
@@ -14,7 +15,7 @@ def create_output_folder():
 
 def generate_visualizations(df):
     """
-    Generates and saves all project plots to the 'figures/' directory.
+    Generates and saves 5 key project plots to the 'figures/' directory.
     """
     create_output_folder()
     
@@ -22,7 +23,9 @@ def generate_visualizations(df):
     _plot_equity_gap(df)
     _plot_aid_effectiveness(df)
     _plot_decoupling(df)
-    print("All figures saved to /figures directory.")
+    _plot_correlation_heatmap(df)
+    _plot_top_renewables(df)
+    print("All 5 figures saved to /figures directory.")
 
 def _plot_equity_gap(df):
     """Figure 1: The divergence between electricity and cooking access."""
@@ -98,3 +101,43 @@ def _plot_decoupling(df):
     plt.tight_layout()
     plt.savefig('figures/fig3_efficiency_decoupling.png')
     plt.close()
+
+def _plot_correlation_heatmap(df):
+    """Figure 4: Correlation Matrix of Key Indicators."""
+    plt.figure(figsize=(10, 8))
+    
+    cols_to_corr = ['Access_Electricity', 'Access_Cooking', 'Renewable_Capacity', 
+                    'Financial_Flows', 'GDP_Capita', 'Energy_Intensity', 'CO2_Total_kt']
+    
+    # Filter only columns present
+    cols = [c for c in cols_to_corr if c in df.columns]
+    
+    if len(cols) > 1:
+        corr = df[cols].corr()
+        mask = np.triu(np.ones_like(corr, dtype=bool))
+        
+        sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap='coolwarm', 
+                    vmax=1, vmin=-1, square=True, linewidths=.5)
+        
+        plt.title('Correlation Matrix of Energy Indicators', fontsize=16)
+        plt.tight_layout()
+        plt.savefig('figures/fig4_correlation_heatmap.png')
+        plt.close()
+
+def _plot_top_renewables(df):
+    """Figure 5: Top 20 Countries by Renewable Capacity (2020)."""
+    if 'Renewable_Capacity' not in df.columns: return
+    
+    plt.figure(figsize=(12, 8))
+    
+    # Get 2020 data
+    data_2020 = df[df['Year'] == 2020].sort_values(by='Renewable_Capacity', ascending=False).head(20)
+    
+    if not data_2020.empty:
+        sns.barplot(x='Renewable_Capacity', y='Country', data=data_2020, palette='viridis')
+        plt.title('Top 20 Countries by Renewable Capacity per Capita (2020)', fontsize=16)
+        plt.xlabel('Watts per Capita')
+        plt.ylabel('')
+        plt.tight_layout()
+        plt.savefig('figures/fig5_top_renewables_bar.png')
+        plt.close()
