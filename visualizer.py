@@ -52,7 +52,7 @@ def _plot_eda_summary(df):
     """
     Generates 3 preliminary visualizations required for EDA:
     1. Histogram (Distribution)
-    2. Boxplot (Outliers)
+    2. Boxplot (Outliers - Multiple Columns)
     3. Missing Data Summary
     """
     
@@ -69,16 +69,26 @@ def _plot_eda_summary(df):
         plt.savefig('figures/fig_eda_1_intensity_histogram.png')
         plt.close()
 
-    # 2. Boxplot: Renewable Capacity (Outlier Detection)
-    if 'Renewable_Capacity' in df.columns:
-        plt.figure(figsize=(10, 6))
-        # Log scale helps visualize the massive outliers better
-        sns.boxplot(x=df['Renewable_Capacity'], color='teal')
-        plt.title('EDA: Renewable Capacity Outliers (Boxplot)', fontweight='bold')
-        plt.xlabel('Renewable Capacity (W/capita)')
-        plt.xscale('log') # Log scale because variations are huge
+    # 2. Boxplot: Comparative Outliers (Multiple Indicators)
+    # Select key numerical columns for comparison
+    cols_to_plot = ['Access_Electricity', 'Access_Cooking', 'Renewable_Capacity', 'Energy_Intensity']
+    available_cols = [c for c in cols_to_plot if c in df.columns]
+    
+    if available_cols:
+        plt.figure(figsize=(14, 8))
+        
+        # Melt the dataframe to long format for Seaborn boxplot
+        df_melted = df[available_cols].melt(var_name='Indicator', value_name='Value')
+        
+        # Create boxplot
+        sns.boxplot(x='Indicator', y='Value', data=df_melted, palette='Set2')
+        
+        plt.title('EDA: Outlier Detection Across Key Indicators', fontweight='bold')
+        plt.xlabel('Indicator')
+        plt.ylabel('Value (Log Scale)')
+        plt.yscale('log') # Log scale is essential because units vary wildly (0-100% vs 0-3000 Watts)
         plt.tight_layout()
-        plt.savefig('figures/fig_eda_2_capacity_boxplot.png')
+        plt.savefig('figures/fig_eda_2_multi_boxplot.png')
         plt.close()
 
     # 3. Bar Chart: Missing Values Summary
