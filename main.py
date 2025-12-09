@@ -5,24 +5,16 @@ from visualizer import generate_visualizations
 from interactive_dashboard import generate_interactive_dashboard
 
 def main():
-    print("Starting 'Financing the Future' Analysis Pipeline...")
-    
-    # 1. Load Data
+    print("Starting 'Financing the Future' Pipeline...")
     df = load_and_clean_data()
     
     if not df.empty:
-        # 2. Run EDA (Economic & Transition Focus)
         perform_eda(df)
-        
-        # 3. Generate Static Visuals (Funding, Kuznets, Mix)
         generate_visualizations(df)
-        
-        # 4. Generate Interactive Dashboard
         generate_interactive_dashboard(df)
-        
-        print("\nPipeline Complete. Check 'figures/' for your report assets.")
+        print("\nPipeline Complete. Check the /figures directory.")
     else:
-        print("Pipeline aborted due to missing data.")
+        print("Error: Dataset empty or not found.")
 
 if __name__ == "__main__":
     main()

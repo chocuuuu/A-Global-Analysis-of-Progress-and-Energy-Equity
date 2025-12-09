@@ -5,55 +5,61 @@ import os
 
 def load_and_clean_data(filepath='data/global-data-on-sustainable-energy.csv'):
     """
-    Loads the dataset and performs feature engineering for the 'Financing the Future' analysis.
+    Loads dataset, standardizes columns, and performs feature engineering 
+    for the 'Financing the Future' analysis.
     """
     if os.path.exists(filepath):
-        print(f"Loading real dataset from {filepath}...")
+        print(f"Loading dataset from {filepath}...")
         df = pd.read_csv(filepath)
-        df.columns = df.columns.str.strip() # Remove whitespace
+        df.columns = df.columns.str.strip() 
     else:
-        print("Dataset not found. Please ensure the file is in the 'data/' folder.")
-        return pd.DataFrame() # Return empty if no data
+        print(f"Error: {filepath} not found.")
+        return pd.DataFrame()
 
     return _preprocess_data(df)
 
 def _preprocess_data(df):
     """
-    Performs feature engineering specific to Economic Drivers & Green Transition.
+    Renames columns and creates derived variables for analysis.
     """
-    # 1. Fill missing Financial Flows (Assumed 0 for non-developing nations)
-    if 'Financial flows to developing countries (US $)' in df.columns:
-        df['Financial flows to developing countries (US $)'] = df['Financial flows to developing countries (US $)'].fillna(0)
-    
-    # 2. Rename columns for easier access
+    # 1. Rename for clarity
     rename_map = {
         'Entity': 'Country',
+        'Year': 'Year',
         'Access to electricity (% of population)': 'Access_Electricity',
         'Renewable-electricity-generating-capacity-per-capita': 'Renewable_Capacity',
         'Financial flows to developing countries (US $)': 'Financial_Flows',
         'Renewable energy share in the total final energy consumption (%)': 'Renewable_Share',
         'Electricity from fossil fuels (TWh)': 'Elec_Fossil',
+        'Electricity from nuclear (TWh)': 'Elec_Nuclear',
         'Electricity from renewables (TWh)': 'Elec_Renewables',
+        'Low-carbon electricity (% electricity)': 'Elec_Low_Carbon_Pct',
+        'Primary energy consumption per capita (kWh/person)': 'Energy_Per_Capita',
+        'Energy intensity level of primary energy (MJ/$2017 PPP GDP)': 'Energy_Intensity',
         'Value_co2_emissions_kt_by_country': 'CO2_Total_kt',
         'gdp_per_capita': 'GDP_Capita',
-        'gdp_growth': 'GDP_Growth',
-        'Energy intensity level of primary energy (MJ/$2017 PPP GDP)': 'Energy_Intensity'
+        'gdp_growth': 'GDP_Growth'
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
-    # 3. Feature Engineering: Economic & Environmental Metrics
+    # 2. Handle Missing Values
+    # Assume missing Financial Flows means $0 (Developed nations or no data)
+    if 'Financial_Flows' in df.columns:
+        df['Financial_Flows'] = df['Financial_Flows'].fillna(0)
     
-    # Carbon Intensity (Emissions per Dollar of GDP) -> Measure of Decoupling
-    if 'CO2_Total_kt' in df.columns and 'GDP_Capita' in df.columns:
-        # Note: CO2 is in kt (kilotons), GDP is per capita. 
-        # For a rough intensity proxy without population, we can look at correlation.
-        # But if we want true intensity, we ideally need Total GDP. 
-        # Here we will simply prepare the raw columns for correlation analysis.
-        pass 
-
-    # Renewable vs Fossil Ratio (The "Transition" Metric)
+    # 3. Feature Engineering for the Paper
+    
+    # A. Carbon Intensity: CO2 Emissions (kt) per Dollar of GDP
+    # Note: To be precise we need Total GDP, so we approximate with correlation proxies 
+    # or create a relative intensity index. Here we stick to raw cols for correlation.
+    
+    # B. Green Transition Ratio (Renewables vs Fossil)
     if 'Elec_Renewables' in df.columns and 'Elec_Fossil' in df.columns:
-        # Avoid division by zero
-        df['Green_Transition_Ratio'] = df['Elec_Renewables'] / df['Elec_Fossil'].replace(0, 0.01)
+        # Add small epsilon to avoid division by zero
+        df['Green_Ratio'] = df['Elec_Renewables'] / (df['Elec_Fossil'] + 0.001)
+
+    # C. GDP Quartiles (for grouping countries by wealth)
+    if 'GDP_Capita' in df.columns:
+        df['Income_Group'] = pd.qcut(df['GDP_Capita'], 4, labels=['Low', 'Lower-Mid', 'Upper-Mid', 'High'])
 
     return df

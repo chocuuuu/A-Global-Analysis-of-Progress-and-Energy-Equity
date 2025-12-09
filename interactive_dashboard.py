@@ -7,98 +7,68 @@ import os
 def generate_interactive_dashboard(df):
     print("Generating interactive dashboard...")
     
-    # 1. Create Figures
-    fig_map = _create_map(df)
-    fig_funding = _create_funding_trend(df) # New
-    fig_decouple = _create_decoupling_bubble(df) # New Focus
-    fig_compare = _create_country_comparison(df)
+    # Generate Plotly Figures
+    fig1 = _map_renewables(df)
+    fig2 = _scatter_decoupling(df)
+    fig3 = _dual_axis_funding(df)
+    fig4 = _bar_top_movers(df)
 
-    # 2. Assemble HTML
-    html_content = _assemble_html(fig_map, fig_funding, fig_decouple, fig_compare)
-    
-    with open('figures/interactive_dashboard.html', 'w', encoding='utf-8') as f:
-        f.write(html_content)
-    
+    # Save to HTML
+    _save_html(fig1, fig2, fig3, fig4)
     print("Dashboard saved to figures/interactive_dashboard.html")
 
-def _create_map(df):
-    """Global Map: Renewable Share."""
+def _map_renewables(df):
     df_2020 = df[df['Year'] == 2020]
-    fig = px.choropleth(df_2020, locations="Country", locationmode='country names',
-                        color="Renewable_Share",
-                        title="Global Renewable Energy Share (2020)",
-                        color_continuous_scale="Tealgrn")
-    fig.update_layout(margin=dict(l=0, r=0, t=50, b=0))
-    return fig
+    return px.choropleth(df_2020, locations="Country", locationmode='country names',
+                         color="Renewable_Share", title="Global Renewable Share (2020)",
+                         color_continuous_scale="Viridis")
 
-def _create_funding_trend(df):
-    """Dual Axis: Money vs Capacity."""
+def _scatter_decoupling(df):
+    # Filter for valid data to avoid 'NaN' size error
+    clean = df.dropna(subset=['GDP_Capita', 'CO2_Total_kt', 'Access_Electricity'])
+    clean = clean[clean['Access_Electricity'] > 0] # Avoid size=0
+    
+    return px.scatter(clean, x="GDP_Capita", y="CO2_Total_kt",
+                      animation_frame="Year", animation_group="Country",
+                      size="Access_Electricity", color="Country",
+                      hover_name="Country", log_x=True, log_y=True,
+                      title="Decoupling Analysis: GDP vs CO2 (Size=Elec Access)")
+
+def _dual_axis_funding(df):
     annual = df.groupby('Year').agg({'Financial_Flows': 'sum', 'Renewable_Capacity': 'mean'}).reset_index()
     
     fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    # Bars for Money
-    fig.add_trace(go.Bar(x=annual['Year'], y=annual['Financial_Flows'], name="Financial Aid ($)", marker_color='#85bb65'),
-                  secondary_y=False)
-    
-    # Line for Capacity
+    fig.add_trace(go.Bar(x=annual['Year'], y=annual['Financial_Flows'], name="Financial Aid ($)"), secondary_y=False)
     fig.add_trace(go.Scatter(x=annual['Year'], y=annual['Renewable_Capacity'], name="Renewable Capacity", 
-                             mode='lines+markers', line=dict(color='#2c3e50', width=3)),
-                  secondary_y=True)
-    
-    fig.update_layout(title="Drivers: Financial Aid vs. Renewable Capacity Growth")
-    fig.update_yaxes(title_text="Financial Flows (USD)", secondary_y=False)
-    fig.update_yaxes(title_text="Capacity (W/capita)", secondary_y=True)
+                             mode='lines+markers', line=dict(width=3)), secondary_y=True)
+    fig.update_layout(title="Drivers: Aid vs Capacity Trends")
     return fig
 
-def _create_decoupling_bubble(df):
-    """Animated Bubble: GDP vs CO2."""
-    # Filter out 0s for log scale AND NaNs for size
-    df_clean = df[
-        (df['GDP_Capita'] > 0) & 
-        (df['CO2_Total_kt'] > 0) & 
-        (df['Access_Electricity'].notna())
-    ].copy()
-    
-    if df_clean.empty:
-        print("Warning: No valid data for Bubble Chart after filtering.")
+def _bar_top_movers(df):
+    pivoted = df.pivot_table(index='Country', columns='Year', values='Renewable_Share')
+    if 2000 in pivoted.columns and 2020 in pivoted.columns:
+        pivoted['Growth'] = pivoted[2020] - pivoted[2000]
+        top10 = pivoted.nlargest(10, 'Growth').reset_index()
+        return px.bar(top10, x='Growth', y='Country', orientation='h', 
+                      title="Top 10 Green Movers (2000-2020)", color='Growth')
+    else:
         return go.Figure()
 
-    fig = px.scatter(df_clean, x="GDP_Capita", y="CO2_Total_kt",
-                     animation_frame="Year", animation_group="Country",
-                     size="Access_Electricity", color="Country",
-                     hover_name="Country", log_x=True, log_y=True,
-                     title="Decoupling Path: GDP Growth vs. CO2 Emissions (Size = Elec Access)",
-                     labels={'GDP_Capita': 'GDP per Capita (Log)', 'CO2_Total_kt': 'CO2 Emissions (Log)'})
-    return fig
-
-def _create_country_comparison(df):
-    """Compare key nations on Green Metrics."""
-    top_countries = ['China', 'India', 'United States', 'Germany', 'Brazil']
-    df_sub = df[df['Country'].isin(top_countries)].sort_values('Year')
-    
-    fig = px.line(df_sub, x='Year', y='Renewable_Share', color='Country',
-                  title="Comparison: Renewable Energy Share (%)")
-    return fig
-
-def _assemble_html(fig_map, fig_funding, fig_decouple, fig_compare):
-    # Minimalist HTML assembly
-    div_map = fig_map.to_html(full_html=False, include_plotlyjs='cdn')
-    div_funding = fig_funding.to_html(full_html=False, include_plotlyjs=False)
-    div_decouple = fig_decouple.to_html(full_html=False, include_plotlyjs=False)
-    div_compare = fig_compare.to_html(full_html=False, include_plotlyjs=False)
-
-    return f"""
+def _save_html(fig1, fig2, fig3, fig4):
+    html = f"""
     <html>
-    <head><title>Financing the Future Dashboard</title></head>
-    <body style="font-family: sans-serif; background: #f4f4f9; padding: 20px;">
-        <h1 style="text-align:center;">Financing the Future: Green Transition Drivers</h1>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div style="background:white; padding:15px; border-radius:10px;">{div_map}</div>
-            <div style="background:white; padding:15px; border-radius:10px;">{div_funding}</div>
-            <div style="background:white; padding:15px; border-radius:10px;">{div_decouple}</div>
-            <div style="background:white; padding:15px; border-radius:10px;">{div_compare}</div>
+    <head><title>Energy Transition Dashboard</title></head>
+    <body style="font-family:sans-serif; background:#f0f2f5; padding:20px;">
+        <h1 style="text-align:center;">Financing the Future: Interactive Results</h1>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <div style="background:white; padding:15px; border-radius:8px;">{fig1.to_html(full_html=False, include_plotlyjs='cdn')}</div>
+            <div style="background:white; padding:15px; border-radius:8px;">{fig2.to_html(full_html=False, include_plotlyjs=False)}</div>
+            <div style="background:white; padding:15px; border-radius:8px;">{fig3.to_html(full_html=False, include_plotlyjs=False)}</div>
+            <div style="background:white; padding:15px; border-radius:8px;">{fig4.to_html(full_html=False, include_plotlyjs=False)}</div>
         </div>
     </body>
     </html>
     """
+    if not os.path.exists('figures'): os.makedirs('figures')
+    with open('figures/interactive_dashboard.html', 'w', encoding='utf-8') as f:
+        f.write(html)

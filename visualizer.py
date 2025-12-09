@@ -21,10 +21,17 @@ def generate_visualizations(df):
     create_output_folder()
     print("Generating static visualizations...")
     
+    # Original Set
     _plot_funding_transition(df)
     _plot_kuznets_curve(df)
     _plot_energy_mix_evolution(df)
     _plot_top_aid_recipients(df)
+    
+    # Additional Figures for Paper
+    _plot_global_divergence(df)
+    _plot_correlation_matrix(df)
+    _plot_top_movers(df)
+    _plot_income_disparity(df)
     
     print("Static figures saved to /figures directory.")
 
@@ -107,4 +114,77 @@ def _plot_top_aid_recipients(df):
     plt.xlabel('Total USD Received')
     plt.tight_layout()
     plt.savefig('figures/fig4_top_aid_recipients.png')
+    plt.close()
+
+# --- Additional Figures for Paper ---
+
+def _plot_global_divergence(df):
+    """Fig 5: Global GDP vs Global CO2 (Normalized). Decoupling Check."""
+    if 'GDP_Capita' not in df.columns: return
+    
+    annual = df.groupby('Year').agg({
+        'GDP_Capita': 'mean', 
+        'CO2_Total_kt': 'sum'
+    }).reset_index()
+    
+    # Normalize to 2000 = 100
+    annual['GDP_Idx'] = (annual['GDP_Capita'] / annual['GDP_Capita'].iloc[0]) * 100
+    annual['CO2_Idx'] = (annual['CO2_Total_kt'] / annual['CO2_Total_kt'].iloc[0]) * 100
+    
+    plt.figure()
+    plt.plot(annual['Year'], annual['GDP_Idx'], label='Global GDP per Capita', color='#2ecc71', linewidth=3)
+    plt.plot(annual['Year'], annual['CO2_Idx'], label='Total CO2 Emissions', color='#e74c3c', linewidth=3, linestyle='--')
+    
+    plt.title('The Decoupling Challenge: Growth vs Emissions (Indexed)', fontweight='bold')
+    plt.ylabel('Index (2000 = 100)')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('figures/fig5_global_divergence.png')
+    plt.close()
+
+def _plot_correlation_matrix(df):
+    """Fig 6: Heatmap of Economic & Energy Indicators."""
+    cols = ['GDP_Capita', 'Financial_Flows', 'Renewable_Share', 
+            'CO2_Total_kt', 'Energy_Intensity', 'Access_Electricity']
+    # Filter for columns that actually exist
+    cols = [c for c in cols if c in df.columns]
+    
+    if len(cols) > 1:
+        corr = df[cols].corr()
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(corr, annot=True, fmt=".2f", cmap='RdBu', center=0, square=True)
+        plt.title('Correlation Matrix of Key Drivers', fontweight='bold')
+        plt.tight_layout()
+        plt.savefig('figures/fig6_correlation_matrix.png')
+        plt.close()
+
+def _plot_top_movers(df):
+    """Fig 7: Top 10 Countries by INCREASE in Renewable Share."""
+    # Calculate change: Value in 2020 - Value in 2000
+    pivoted = df.pivot_table(index='Country', columns='Year', values='Renewable_Share')
+    if 2000 in pivoted.columns and 2020 in pivoted.columns:
+        pivoted['Growth'] = pivoted[2020] - pivoted[2000]
+        top10 = pivoted.nlargest(10, 'Growth')
+        
+        plt.figure()
+        # Fix warning: assign y to hue
+        sns.barplot(x=top10['Growth'], y=top10.index, hue=top10.index, palette='Greens_r', legend=False)
+        plt.title('Top 10 Countries by Renewable Share Growth (2000-2020)', fontweight='bold')
+        plt.xlabel('Percentage Point Increase')
+        plt.tight_layout()
+        plt.savefig('figures/fig7_top_movers.png')
+        plt.close()
+
+def _plot_income_disparity(df):
+    """Fig 8: Boxplot of Renewable Share by Income Group."""
+    if 'Income_Group' not in df.columns: return
+    
+    plt.figure()
+    # Fix warning: assign x to hue
+    sns.boxplot(x='Income_Group', y='Renewable_Share', hue='Income_Group', data=df, palette='Set2', legend=False)
+    plt.title('Renewable Energy Share by Income Level', fontweight='bold')
+    plt.xlabel('Income Quartile (Based on GDP/capita)')
+    plt.ylabel('Renewable Share (%)')
+    plt.tight_layout()
+    plt.savefig('figures/fig8_income_disparity.png')
     plt.close()
