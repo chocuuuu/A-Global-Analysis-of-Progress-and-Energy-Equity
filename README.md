@@ -1,34 +1,38 @@
-# Tracking the Divide: A Global Analysis of Progress and Energy Equity (2000–2020)
+# Financing the Future: Economic Drivers of the Green Transition (2000–2019)
 
 ![Python](https://img.shields.io/badge/python-3.8%2B-blue)
-![Last Updated](https://img.shields.io/badge/last_updated-2025--12--07-orange)
+![Last Updated](https://img.shields.io/badge/last_updated-2025--12--09-orange)
 
 ---
 
 ## Overview
-This project analyzes the **Global Data on Sustainable Energy (2000-2020)** to evaluate progress toward **Sustainable Development Goal 7 (Affordable and Clean Energy)**.  
+This project analyzes the **Global Data on Sustainable Energy** to investigate the relationship between economic drivers—specifically **GDP growth** and **international financial aid**—and the transition to renewable energy.
 
-The focus is on the **Energy Equity Gap**—the disparity between infrastructure (electricity access) and quality of life (clean cooking)—and the effectiveness of financial flows.
+Addressing **SDG 7 (Affordable and Clean Energy)** and **SDG 13 (Climate Action)**, the analysis answers three critical questions:
+1.  **Decoupling:** Has economic growth separated from carbon emissions?
+2.  **Aid Effectiveness:** Does international climate finance actually drive renewable capacity?
+3.  **The Green Divide:** How does renewable adoption differ between rich and poor nations?
 
 ---
 
 ## Methodology Highlights
-- Equity Gap Analysis: Compares access to electricity vs. access to clean fuels for cooking
-- Aid Effectiveness: Correlates financial flows to developing countries with changes in renewable capacity
-- Decoupling: Analyzes the relationship between GDP per capita and energy intensity
-  
+- **Relative Decoupling Analysis:** Comparing global GDP growth (+119.6%) vs. CO₂ emissions growth (+48.1%).
+- **Aid ROI metrics:** Correlating cumulative financial flows with physical capacity added (Watts/capita).
+- **Inequality Assessment:** Analyzing renewable energy shares across World Bank income quartiles.
+- **Predictive Forecasting:** Linear regression models projecting the trajectory of top performing nations to 2030.
+
 ---
 
 ## Repository Contents
 
 | File | Description |
 |------|-------------|
-| **`main.py`** | Main Python script for data processing, statistical analysis, and static visualization generation |
-| **`data_loader.py`** |  Handles CSV loading, whitespace cleaning, null imputation, and feature engineering |
-| **`eda.py`** | Performs statistical analysis, missing value assessment, and correlation checks. |
-| **`visualizer.py`** | Generates static figures. |
-| **`interactive_dashboard.py`** | Generates the HTML dashboard and outputs detailed chart statistics to the console. |
-| **`figures/`** | Directory containing all generated outputs |
+| **`main.py`** | Main pipeline controller. Runs data loading, EDA, static visualization, and dashboard generation in sequence. |
+| **`data_loader.py`** | Handles CSV ingestion, imputation of missing aid data, and feature engineering (Green Ratio, Income Groups). |
+| **`eda.py`** | Performs statistical analysis for the paper, including correlations, intensity changes, and stratification by income. |
+| **`visualizer.py`** | Generates the 9 static figures used in the final report, complete with granular data logging. |
+| **`interactive_dashboard.py`** | Generates the HTML dashboard with interactive Plotly versions of all paper figures. |
+| **`figures/`** | Directory containing all generated PNG plots and the HTML dashboard. |
 
 ---
 
@@ -42,38 +46,46 @@ You need **Python 3.8+** and the following libraries:
 ```bash
 pip install pandas numpy matplotlib seaborn plotly
 ```
-</details> 
+</details>
 
 <details> 
 <summary>2. Running the Analysis</summary>
-  
-Place your dataset file global-data-on-sustainable-energy.csv in the `data/` directory.
 
-Run the script:
+Place your dataset file global-data-on-sustainable-energy.csv in the data/ directory.
 
-```
+Run the main script:
+
+```bash
 python main.py
 ```
 
-After running the script, check the console logs for granular data insights, including:
-- Global renewable capacity distribution buckets.
-- Specific "Equity Gap" trends for top impacted countries.
-- Efficiency metrics for financial aid recipients (ROI analysis).
-- Decoupling statistics (GDP vs CO2).
+The script will execute in 4 Phases and log detailed statistics to the terminal for use in your report:
 
-Figures 
-1. **fig1_equity_gap_trends.png**: Electricity vs Clean Cooking access.
-2. **fig2_aid_effectiveness_scatter.png**: Financial flows vs Capacity growth.
-3. **fig3_efficiency_decoupling.png**: GDP vs Energy Intensity trends.
-4. **fig4_correlation_heatmap.png**: Correlation matrix of all indicators.
-5. **fig5_top_renewables_bar.png**: Top 20 nations by renewable capacity.
-6. **interactive_dashboard.html**: Comprehensive dashboard with map, animations, and drill-downs.
+- **Phase 1**: Data Ingestion & Preprocessing.
+- **Phase 2**: EDA (Decoupling stats, Aid correlations, Equity tables).
+- **Phase 3**: Visualization Generation.
+- **Phase 4**: Interactive Dashboard Assembly.
 
-</details> 
+</details>
 
-<details> 
-<summary>3. Using the Dashboard</summary>
+<details> <summary>3. Generated Outputs</summary>
 
-Simply double-click interactive_dashboard.html to open it in any modern web browser. No installation required. It contains embedded sample data for immediate interaction.
+After running the script, the figures/ directory will contain:
+
+Static Figures (for PDF Report):
+
+1. **fig1_funding_transition.png**: Dual-axis chart comparing Financial Aid vs. Capacity.
+2. **fig2_kuznets_curve.png**: Scatter plot testing the Environmental Kuznets Curve.
+3. **fig3_energy_mix_evolution.png**: Stacked area chart of global generation (Fossil vs. Renewable).
+4. **fig4_top_aid_recipients.png**: Top 10 countries receiving climate finance.
+5. **fig5_global_divergence.png**: Indexed trends of GDP vs. CO2 (The Decoupling Check).
+6. **fig6_correlation_matrix.png**: Heatmap of key economic and energy drivers.
+7. **fig7_top_movers.png**: Top 10 nations by renewable share growth.
+8. **fig8_income_disparity.png**: Boxplot showing the "Green Divide" by income group.
+9. **fig9_predictive_forecast.png**: 2030 Trajectory forecast for top performers.
+
+Interactive Dashboard:
+
+- **interactive_dashboard.html**: A standalone HTML file containing interactive versions of all 9 figures above. Double-click to open in any browser.
 
 </details>
