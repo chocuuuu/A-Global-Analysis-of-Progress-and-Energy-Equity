@@ -5,62 +5,55 @@ import os
 
 def load_and_clean_data(filepath='data/global-data-on-sustainable-energy.csv'):
     """
-    Loads the dataset, handles missing file generation, and standardizes column names.
+    Loads the dataset and performs feature engineering for the 'Financing the Future' analysis.
     """
     if os.path.exists(filepath):
         print(f"Loading real dataset from {filepath}...")
         df = pd.read_csv(filepath)
         df.columns = df.columns.str.strip() # Remove whitespace
     else:
-        print("Dataset not found. Generating synthetic data for demonstration...")
-        df = _generate_synthetic_data()
+        print("Dataset not found. Please ensure the file is in the 'data/' folder.")
+        return pd.DataFrame() # Return empty if no data
 
     return _preprocess_data(df)
 
 def _preprocess_data(df):
     """
-    Performs feature engineering and renaming.
+    Performs feature engineering specific to Economic Drivers & Green Transition.
     """
-    # 1. Fill missing Financial Flows
+    # 1. Fill missing Financial Flows (Assumed 0 for non-developing nations)
     if 'Financial flows to developing countries (US $)' in df.columns:
         df['Financial flows to developing countries (US $)'] = df['Financial flows to developing countries (US $)'].fillna(0)
     
-    # 2. Rename columns for internal consistency
+    # 2. Rename columns for easier access
     rename_map = {
+        'Entity': 'Country',
         'Access to electricity (% of population)': 'Access_Electricity',
-        'Access to clean fuels for cooking': 'Access_Cooking',
         'Renewable-electricity-generating-capacity-per-capita': 'Renewable_Capacity',
         'Financial flows to developing countries (US $)': 'Financial_Flows',
-        'gdp_per_capita': 'GDP_Capita',
-        'Energy intensity level of primary energy (MJ/$2017 PPP GDP)': 'Energy_Intensity',
+        'Renewable energy share in the total final energy consumption (%)': 'Renewable_Share',
+        'Electricity from fossil fuels (TWh)': 'Elec_Fossil',
+        'Electricity from renewables (TWh)': 'Elec_Renewables',
         'Value_co2_emissions_kt_by_country': 'CO2_Total_kt',
-        'Entity': 'Country'
+        'gdp_per_capita': 'GDP_Capita',
+        'gdp_growth': 'GDP_Growth',
+        'Energy intensity level of primary energy (MJ/$2017 PPP GDP)': 'Energy_Intensity'
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
-    # 3. Calculate the Equity Gap (Infrastructure vs Health)
-    if 'Access_Electricity' in df.columns and 'Access_Cooking' in df.columns:
-        df['Cooking_Gap'] = df['Access_Electricity'] - df['Access_Cooking']
-        
-    return df
+    # 3. Feature Engineering: Economic & Environmental Metrics
+    
+    # Carbon Intensity (Emissions per Dollar of GDP) -> Measure of Decoupling
+    if 'CO2_Total_kt' in df.columns and 'GDP_Capita' in df.columns:
+        # Note: CO2 is in kt (kilotons), GDP is per capita. 
+        # For a rough intensity proxy without population, we can look at correlation.
+        # But if we want true intensity, we ideally need Total GDP. 
+        # Here we will simply prepare the raw columns for correlation analysis.
+        pass 
 
-def _generate_synthetic_data():
-    """Generates dummy data matching the specific schema if CSV is missing."""
-    years = np.arange(2000, 2021)
-    countries = ['Country A', 'Country B', 'Country C', 'Country D']
-    data = []
-    for country in countries:
-        for year in years:
-            gdp = 1000 + (year-2000)*200
-            data.append({
-                'Entity': country,
-                'Year': year,
-                'Access to electricity (% of population)': min(100, 50 + (year-2000)*2.5 + np.random.normal(0, 2)),
-                'Access to clean fuels for cooking': min(100, 30 + (year-2000)*1.5 + np.random.normal(0, 2)),
-                'Financial flows to developing countries (US $)': max(0, 1e6 + np.random.normal(0, 5e5)),
-                'Renewable-electricity-generating-capacity-per-capita': 50 + (year-2000)*5,
-                'gdp_per_capita': gdp,
-                'Value_co2_emissions_kt_by_country': gdp * 0.5,
-                'Energy intensity level of primary energy (MJ/$2017 PPP GDP)': max(2, 8 - (year-2000)*0.2)
-            })
-    return pd.DataFrame(data)
+    # Renewable vs Fossil Ratio (The "Transition" Metric)
+    if 'Elec_Renewables' in df.columns and 'Elec_Fossil' in df.columns:
+        # Avoid division by zero
+        df['Green_Transition_Ratio'] = df['Elec_Renewables'] / df['Elec_Fossil'].replace(0, 0.01)
+
+    return df

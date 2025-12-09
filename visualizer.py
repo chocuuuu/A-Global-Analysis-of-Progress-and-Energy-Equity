@@ -5,12 +5,10 @@ import numpy as np
 import pandas as pd
 import os
 
-# Set global style for static plots
-sns.set_theme(style="darkgrid", context="talk")
+# Set global style
+sns.set_theme(style="whitegrid", context="talk")
 plt.rcParams['figure.figsize'] = (14, 8)
 plt.rcParams['savefig.dpi'] = 300
-plt.rcParams['axes.titlesize'] = 18
-plt.rcParams['axes.labelsize'] = 14
 
 def create_output_folder():
     if not os.path.exists('figures'):
@@ -18,138 +16,94 @@ def create_output_folder():
 
 def generate_visualizations(df):
     """
-    Generates and saves static PNG plots for the PDF Report.
+    Generates static plots focusing on Economic Drivers and Green Transition.
     """
     create_output_folder()
+    print("Generating static visualizations...")
     
-    print("Generating static visualizations (Matplotlib/Seaborn)...")
-    _plot_equity_gap(df)
-    _plot_aid_effectiveness(df)
-    _plot_decoupling(df)
-    _plot_correlation_heatmap(df)
-    _plot_top_renewables(df)
+    _plot_funding_transition(df)
+    _plot_kuznets_curve(df)
+    _plot_energy_mix_evolution(df)
+    _plot_top_aid_recipients(df)
     
     print("Static figures saved to /figures directory.")
 
-def _plot_equity_gap(df):
-    """Figure 1: The divergence between electricity and cooking access."""
-    if 'Access_Electricity' not in df.columns: return
-
-    plt.figure()
-    global_trends = df.groupby('Year')[['Access_Electricity', 'Access_Cooking']].mean().reset_index()
-    
-    # Eye-catching colors
-    c_elec = '#00C9A7' # Teal
-    c_cook = '#FF8066' # Coral
-    
-    plt.plot(global_trends['Year'], global_trends['Access_Electricity'], 
-             label='Electricity Access (%)', color=c_elec, linewidth=4, marker='o')
-    plt.plot(global_trends['Year'], global_trends['Access_Cooking'], 
-             label='Clean Cooking Access (%)', color=c_cook, linewidth=4, linestyle='--', marker='x')
-    
-    plt.fill_between(global_trends['Year'], 
-                     global_trends['Access_Electricity'], 
-                     global_trends['Access_Cooking'], 
-                     color='gray', alpha=0.1, label='The Equity Gap')
-    
-    plt.title('Global Energy Equity: Infrastructure vs. Health (2000-2020)', fontweight='bold')
-    plt.ylabel('% of Population')
-    plt.xlabel('Year')
-    plt.legend(frameon=True, shadow=True)
-    plt.tight_layout()
-    plt.savefig('figures/fig1_equity_gap_trends.png')
-    plt.close()
-
-def _plot_aid_effectiveness(df):
-    """Figure 2: Financial Flows vs Renewable Capacity."""
+def _plot_funding_transition(df):
+    """Fig 1: Dual Axis - Financial Flows vs Renewable Capacity (Global)."""
     if 'Financial_Flows' not in df.columns: return
 
-    plt.figure()
-    country_stats = df.groupby('Country').agg({
+    # Aggregating globally by year
+    annual = df.groupby('Year').agg({
         'Financial_Flows': 'sum',
-        'Renewable_Capacity': lambda x: x.iloc[-1] - x.iloc[0] if len(x) > 1 else 0,
-        'GDP_Capita': 'mean'
+        'Renewable_Capacity': 'mean'
     }).reset_index()
-    
-    subset = country_stats[country_stats['Financial_Flows'] > 0]
-    
-    if not subset.empty:
-        scatter = sns.scatterplot(data=subset, x='Financial_Flows', y='Renewable_Capacity', 
-                        size='GDP_Capita', sizes=(50, 600), hue='GDP_Capita', 
-                        palette='plasma', alpha=0.8, edgecolor='black', linewidth=1)
-        
-        plt.xscale('log')
-        plt.title('Aid Effectiveness: Funding vs. Capacity Growth', fontweight='bold')
-        plt.xlabel('Total Financial Aid Received (USD, Log Scale)')
-        plt.ylabel('Growth in Renewable Capacity (W/capita)')
-        plt.grid(True, which="both", ls="--", alpha=0.3)
-        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-        plt.tight_layout()
-        plt.savefig('figures/fig2_aid_effectiveness_scatter.png')
-        plt.close()
 
-def _plot_decoupling(df):
-    """Figure 3: GDP vs Energy Intensity."""
+    fig, ax1 = plt.subplots()
+
+    # Bar Chart for Money (Left Axis)
+    color1 = '#85bb65' # Dollar Green
+    ax1.set_xlabel('Year')
+    ax1.set_ylabel('Total Financial Flows (USD)', color=color1)
+    ax1.bar(annual['Year'], annual['Financial_Flows'], color=color1, alpha=0.6, label='Financial Flows')
+    ax1.tick_params(axis='y', labelcolor=color1)
+
+    # Line Chart for Capacity (Right Axis)
+    ax2 = ax1.twinx() 
+    color2 = '#2c3e50' # Dark Blue
+    ax2.set_ylabel('Avg Renewable Capacity (W/capita)', color=color2)
+    ax2.plot(annual['Year'], annual['Renewable_Capacity'], color=color2, linewidth=4, marker='o', label='Renewable Capacity')
+    ax2.tick_params(axis='y', labelcolor=color2)
+
+    plt.title('Funding the Future: Does Money Drive Capacity? (2000-2020)', fontweight='bold')
+    plt.tight_layout()
+    plt.savefig('figures/fig1_funding_transition.png')
+    plt.close()
+
+def _plot_kuznets_curve(df):
+    """Fig 2: GDP vs CO2 (Testing the Environmental Kuznets Curve)."""
     if 'GDP_Capita' not in df.columns: return
 
     plt.figure()
-    global_eco = df.groupby('Year')[['GDP_Capita', 'Energy_Intensity']].mean().reset_index()
+    # Log scale often helps visualize GDP/CO2 better
+    sns.scatterplot(data=df, x='GDP_Capita', y='CO2_Total_kt', 
+                    hue='Year', palette='viridis', alpha=0.7, size='Year', sizes=(20, 100))
     
-    # Normalize to 2000 = 100
-    global_eco['GDP_Index'] = (global_eco['GDP_Capita'] / global_eco['GDP_Capita'].iloc[0]) * 100
-    global_eco['Intensity_Index'] = (global_eco['Energy_Intensity'] / global_eco['Energy_Intensity'].iloc[0]) * 100
-    
-    plt.plot(global_eco['Year'], global_eco['GDP_Index'], label='GDP Growth (Index)', color='#4D8076', linewidth=4)
-    plt.plot(global_eco['Year'], global_eco['Intensity_Index'], label='Energy Intensity (Index)', color='#C84451', linewidth=4)
-    
-    plt.axhline(100, color='black', linewidth=2, linestyle=':')
-    plt.title('The Efficiency Paradox: Growth vs. Intensity', fontweight='bold')
-    plt.ylabel('Index (Base Year 2000 = 100)')
-    plt.legend(frameon=True, shadow=True)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.title('The Decoupling Test: GDP vs. CO2 Emissions', fontweight='bold')
+    plt.xlabel('GDP per Capita (Log Scale)')
+    plt.ylabel('CO2 Emissions (kt) (Log Scale)')
     plt.tight_layout()
-    plt.savefig('figures/fig3_efficiency_decoupling.png')
+    plt.savefig('figures/fig2_kuznets_curve.png')
     plt.close()
 
-def _plot_correlation_heatmap(df):
-    """Figure 4: Correlation Matrix of Key Indicators with Fixed Grid Lines."""
-    plt.figure(figsize=(12, 10))
-    
-    cols_to_corr = ['Access_Electricity', 'Access_Cooking', 'Renewable_Capacity', 
-                    'Financial_Flows', 'GDP_Capita', 'Energy_Intensity', 'CO2_Total_kt']
-    
-    # Filter only columns present
-    cols = [c for c in cols_to_corr if c in df.columns]
-    
-    if len(cols) > 1:
-        corr = df[cols].corr()
-        mask = np.triu(np.ones_like(corr, dtype=bool))
-        
-        sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap='Spectral', center=0,
-                    vmax=1, vmin=-1, square=True, 
-                    linewidths=1, linecolor='white',
-                    cbar_kws={"shrink": .8})
-        
-        plt.title('Correlation Matrix of Energy Indicators', fontweight='bold', pad=20)
-        plt.tight_layout()
-        plt.savefig('figures/fig4_correlation_heatmap.png')
-        plt.close()
+def _plot_energy_mix_evolution(df):
+    """Fig 3: Fossil vs Renewable TWh over time."""
+    if 'Elec_Fossil' not in df.columns: return
 
-def _plot_top_renewables(df):
-    """Figure 5: Top 20 Countries by Renewable Capacity (2020)."""
-    if 'Renewable_Capacity' not in df.columns: return
+    annual_mix = df.groupby('Year')[['Elec_Fossil', 'Elec_Renewables']].sum().reset_index()
     
-    plt.figure(figsize=(14, 10))
+    plt.figure()
+    plt.stackplot(annual_mix['Year'], annual_mix['Elec_Fossil'], annual_mix['Elec_Renewables'],
+                  labels=['Fossil Fuels', 'Renewables'], colors=['#636e72', '#00b894'], alpha=0.8)
     
-    # Get 2020 data
-    data_2020 = df[df['Year'] == 2020].sort_values(by='Renewable_Capacity', ascending=False).head(20)
+    plt.title('Global Electricity Generation Mix (TWh)', fontweight='bold')
+    plt.ylabel('Terawatt-hours (TWh)')
+    plt.legend(loc='upper left')
+    plt.tight_layout()
+    plt.savefig('figures/fig3_energy_mix_evolution.png')
+    plt.close()
+
+def _plot_top_aid_recipients(df):
+    """Fig 4: Top 10 Countries receiving Financial Flows."""
+    if 'Financial_Flows' not in df.columns: return
     
-    if not data_2020.empty:
-        # FIX: Assign 'Country' to 'hue' and set legend=False to silence FutureWarning
-        sns.barplot(x='Renewable_Capacity', y='Country', data=data_2020, 
-                    hue='Country', palette='viridis', legend=False)
-        plt.title('Top 20 Countries by Renewable Capacity per Capita (2020)', fontweight='bold')
-        plt.xlabel('Watts per Capita')
-        plt.ylabel('')
-        plt.tight_layout()
-        plt.savefig('figures/fig5_top_renewables_bar.png')
-        plt.close()
+    total_aid = df.groupby('Country')['Financial_Flows'].sum().sort_values(ascending=False).head(10)
+    
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x=total_aid.values, y=total_aid.index, palette='Blues_r')
+    plt.title('Top 10 Recipients of Green Energy Financial Aid (2000-2020)', fontweight='bold')
+    plt.xlabel('Total USD Received')
+    plt.tight_layout()
+    plt.savefig('figures/fig4_top_aid_recipients.png')
+    plt.close()
