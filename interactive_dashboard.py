@@ -126,12 +126,31 @@ def _create_fig4_correlation_matrix(df):
 
 def _create_fig5_strategic_leaders(df):
     """Fig 5: Top 20 Strategic Leaders"""
+    # Get the latest data for each country
     latest = df.sort_values('Year').groupby('Country').tail(1)
+    
+    # Get Top 20 and sort Ascending (so largest is at the top in Plotly)
     top20 = latest.nlargest(20, 'Renewable_Capacity').sort_values('Renewable_Capacity', ascending=True)
     
-    fig = px.bar(top20, x='Renewable_Capacity', y='Country', orientation='h', 
+    fig = px.bar(top20, 
+                 x='Renewable_Capacity', 
+                 y='Country', 
+                 orientation='h', 
                  title=f"<b>Fig 5: Top 20 Nations by Capacity ({LAST_VALID_YEAR})</b>", 
-                 color='Renewable_Capacity', color_continuous_scale='Blues')
+                 color='Renewable_Capacity', 
+                 color_continuous_scale='Blues',
+                 # FIX 1: Use text_auto to put the NUMBER on the bar
+                 text_auto='.0f',
+                 labels={'Renewable_Capacity': 'Watts per Capita', 'Country': ''}
+                 )
+    
+    # FIX 2: Let Plotly decide if the number goes inside or outside the bar
+    fig.update_traces(textposition='auto')
+    
+    # FIX 3: EXPLICITLY ensure country names (Y-axis) are visible
+    fig.update_yaxes(showticklabels=True, tickfont=dict(size=12))
+    
+    fig.update_layout(template="plotly_white", coloraxis_showscale=False)
     return fig
 
 def _create_fig6_energy_mix(df):
