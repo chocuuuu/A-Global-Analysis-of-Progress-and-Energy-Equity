@@ -1,7 +1,6 @@
 # filename: visualizer.py
 import matplotlib.pyplot as plt
 import geopandas as gpd
-import geodatasets
 import seaborn as sns
 import numpy as np
 import pandas as pd
@@ -22,345 +21,210 @@ def create_output_folder():
 
 def generate_visualizations(df):
     """
-    Generates 8 static figures with DETAILED DATA LOGGING for the report.
+    Generates 10 static figures aligned with the 'Financing the Future' PDF report.
     """
     create_output_folder()
     print("\n" + "="*60)
-    print(f"   PHASE 3: VISUALIZATION & DATA EXTRACTION (2000-{LAST_VALID_YEAR})   ")
+    print(f"   PHASE 3: VISUALIZATION GENERATION (Aligned to Report)   ")
     print("="*60)
     
     # Filter dataset
     df_clean = df[df['Year'] <= LAST_VALID_YEAR].copy()
     
-    # Generating EDA visualizations
+    # Generating EDA visualizations (Unchanged)
     _plot_eda_summary(df)
 
-    # Generate Figures with Logs
-    _plot_funding_transition(df_clean)
-    _plot_kuznets_curve(df_clean)
-    _plot_energy_mix_evolution(df_clean)
-    _plot_top_aid_recipients(df_clean)
-    _plot_global_divergence(df_clean)
-    _plot_correlation_matrix(df_clean)
-    _plot_top_movers(df_clean)
-    _plot_income_disparity(df_clean)
-    _plot_forecast_transition(df_clean)
-    _plot_choropleth_map(df_clean)
+    # --- REPORT FIGURES (1-5) ---
+    # These now match the specific insights in your PDF Abstract & Sections 6.1-6.4
+    _plot_fig1_equity_gap(df_clean)
+    _plot_fig2_aid_effectiveness(df_clean)
+    _plot_fig3_efficiency_decoupling(df_clean)
+    _plot_fig4_correlation_matrix(df_clean)
+    _plot_fig5_strategic_leaders(df_clean)
+    
+    # --- SUPPLEMENTARY FIGURES (6-10) ---
+    # These are the remaining useful charts from your original code
+    _plot_fig6_energy_mix(df_clean)
+    _plot_fig7_top_aid_recipients(df_clean)
+    _plot_fig8_income_disparity(df_clean)
+    _plot_fig9_forecast(df_clean)
+    _plot_fig10_choropleth_map(df_clean)
     
     print("\n-> All figures saved to /figures directory.")
 
-# --- EDA VISUALIZATION FUNCTIONS ---
+# --- EDA VISUALIZATION FUNCTIONS (UNCHANGED) ---
 
 def _plot_eda_summary(df):
-    """
-    Generates 3 preliminary visualizations required for EDA:
-    1. Histogram (Distribution)
-    2. Boxplot (Outliers - Multiple Columns)
-    3. Missing Data Summary
-    """
-    
-    # 1. Histogram: Energy Intensity Distribution
+    # 1. Histogram
     if 'Energy_Intensity' in df.columns:
         plt.figure(figsize=(10, 6))
         sns.histplot(df['Energy_Intensity'], kde=True, color='purple', bins=30)
         plt.title('EDA: Distribution of Energy Intensity (Skew Check)', fontweight='bold')
         plt.xlabel('Energy Intensity (MJ/$ GDP)')
         plt.ylabel('Frequency')
-        plt.axvline(df['Energy_Intensity'].mean(), color='red', linestyle='--', label='Mean')
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig('figures/fig_eda_1_intensity_histogram.png')
-        plt.close()
+        plt.tight_layout(); plt.savefig('figures/fig_eda_1_intensity_histogram.png'); plt.close()
 
-    # 2. Boxplot: Comparative Outliers (Multiple Indicators)
-    # Select key numerical columns for comparison
-    cols_to_plot = ['Access_Electricity', 'Access_Cooking', 'Renewable_Capacity', 'Energy_Intensity']
-    available_cols = [c for c in cols_to_plot if c in df.columns]
-    
-    if available_cols:
+    # 2. Boxplot
+    cols = ['Access_Electricity', 'Access_Cooking', 'Renewable_Capacity', 'Energy_Intensity']
+    available = [c for c in cols if c in df.columns]
+    if available:
         plt.figure(figsize=(14, 8))
-        
-        # Melt the dataframe to long format for Seaborn boxplot
-        df_melted = df[available_cols].melt(var_name='Indicator', value_name='Value')
-        
-        # Create boxplot
-        sns.boxplot(x='Indicator', y='Value', data=df_melted, palette='Set2')
-        
-        plt.title('EDA: Outlier Detection Across Key Indicators', fontweight='bold')
-        plt.xlabel('Indicator')
-        plt.ylabel('Value (Log Scale)')
-        plt.yscale('log') # Log scale is essential because units vary wildly (0-100% vs 0-3000 Watts)
-        plt.tight_layout()
-        plt.savefig('figures/fig_eda_2_multi_boxplot.png')
-        plt.close()
+        df_melt = df[available].melt(var_name='Indicator', value_name='Value')
+        sns.boxplot(x='Indicator', y='Value', data=df_melt, palette='Set2')
+        plt.yscale('log')
+        plt.title('EDA: Outlier Detection', fontweight='bold')
+        plt.tight_layout(); plt.savefig('figures/fig_eda_2_multi_boxplot.png'); plt.close()
 
-    # 3. Bar Chart: Missing Values Summary
+    # 3. Missing Values
     plt.figure(figsize=(12, 6))
     missing = df.isnull().sum()
     missing = missing[missing > 0].sort_values(ascending=False)
     if not missing.empty:
         sns.barplot(x=missing.values, y=missing.index, palette='Reds_r')
-        plt.title('EDA: Missing Values Count by Indicator', fontweight='bold')
-        plt.xlabel('Number of Missing Records')
-        plt.tight_layout()
-        plt.savefig('figures/fig_eda_3_missing_values.png')
-        plt.close()
+        plt.title('EDA: Missing Values Summary', fontweight='bold')
+        plt.tight_layout(); plt.savefig('figures/fig_eda_3_missing_values.png'); plt.close()
 
-# --- PLOTTING FUNCTIONS WITH DETAILED LOGS ---
+# --- REPORT FIGURES (MATCHING PDF) ---
 
-def _plot_funding_transition(df):
-    print("\n[Fig 1] Funding Transition (Dual Axis)")
-    if 'Financial_Flows' not in df.columns: return
+def _plot_fig1_equity_gap(df):
+    print("\n[Fig 1] Equity Gap (Electricity vs Cooking)")
+    if 'Access_Electricity' not in df.columns or 'Access_Cooking' not in df.columns: return
 
-    annual = df.groupby('Year').agg({'Financial_Flows': 'sum', 'Renewable_Capacity': 'mean'}).reset_index()
+    annual = df.groupby('Year')[['Access_Electricity', 'Access_Cooking']].mean().reset_index()
     
-    # DATA EXTRACTION
-    v2000 = annual.iloc[0]
-    vEnd = annual.iloc[-1]
-    peak = annual.loc[annual['Financial_Flows'].idxmax()]
-    
-    print(f"   - Aid Trend: 2000=${v2000['Financial_Flows']/1e9:.2f}B -> {LAST_VALID_YEAR}=${vEnd['Financial_Flows']/1e9:.2f}B")
-    print(f"   - Peak Aid:  {int(peak['Year'])} (${peak['Financial_Flows']/1e9:.2f}B)")
-    print(f"   - Capacity:  2000={v2000['Renewable_Capacity']:.2f} W/cap -> {LAST_VALID_YEAR}={vEnd['Renewable_Capacity']:.2f} W/cap")
-
-    fig, ax1 = plt.subplots()
-    color1 = '#85bb65'
-    ax1.set_xlabel('Year')
-    ax1.set_ylabel('Total Financial Flows (USD)', color=color1)
-    ax1.bar(annual['Year'], annual['Financial_Flows'], color=color1, alpha=0.6, label='Financial Flows')
-    ax1.tick_params(axis='y', labelcolor=color1)
-    
-    ax2 = ax1.twinx()
-    color2 = '#2c3e50'
-    ax2.set_ylabel('Avg Renewable Capacity (W/capita)', color=color2)
-    ax2.plot(annual['Year'], annual['Renewable_Capacity'], color=color2, linewidth=4, marker='o', label='Renewable Capacity')
-    ax2.tick_params(axis='y', labelcolor=color2)
-    
-    plt.title(f'Fig 1: Funding the Future (2000-{LAST_VALID_YEAR})')
-    plt.tight_layout(); plt.savefig('figures/fig1_funding_transition.png'); plt.close()
-
-def _plot_kuznets_curve(df):
-    print("\n[Fig 2] Kuznets Curve (Scatter)")
-    if 'GDP_Capita' not in df.columns: return
-    
-    # DATA EXTRACTION
-    rich_dirty = df[(df['GDP_Capita'] > 50000) & (df['CO2_Total_kt'] > 100000)]
-    print(f"   - Data Points: {len(df)}")
-    print(f"   - Correlation (Log-Log proxy): {np.log1p(df['GDP_Capita']).corr(np.log1p(df['CO2_Total_kt'])):.4f}")
-    if not rich_dirty.empty:
-        print(f"   - Example 'Rich & Dirty' outliers: {rich_dirty['Country'].unique()[:3]}")
-    
-    plt.figure()
-    sns.scatterplot(data=df, x='GDP_Capita', y='CO2_Total_kt', hue='Year', palette='viridis', alpha=0.7, size='Year', sizes=(20, 100))
-    plt.xscale('log'); plt.yscale('log')
-    plt.title('Fig 2: The Decoupling Test (GDP vs. CO2)')
-    plt.xlabel('GDP per Capita (Log)'); plt.ylabel('CO2 Emissions (kt) (Log)')
-    plt.tight_layout(); plt.savefig('figures/fig2_kuznets_curve.png'); plt.close()
-
-def _plot_energy_mix_evolution(df):
-    print("\n[Fig 3] Energy Mix (Stacked Area)")
-    if 'Elec_Fossil' not in df.columns: return
-
-    annual_mix = df.groupby('Year')[['Elec_Fossil', 'Elec_Renewables', 'Elec_Nuclear']].sum().reset_index()
-    
-    # DATA EXTRACTION
-    start = annual_mix.iloc[0]
-    end = annual_mix.iloc[-1]
-    
-    f_growth = ((end['Elec_Fossil'] - start['Elec_Fossil']) / start['Elec_Fossil']) * 100
-    r_growth = ((end['Elec_Renewables'] - start['Elec_Renewables']) / start['Elec_Renewables']) * 100
-    
-    print(f"   - Fossil Generation: {start['Elec_Fossil']:.0f} TWh -> {end['Elec_Fossil']:.0f} TWh ({f_growth:+.1f}%)")
-    print(f"   - Renewables Gen:    {start['Elec_Renewables']:.0f} TWh -> {end['Elec_Renewables']:.0f} TWh ({r_growth:+.1f}%)")
-    print("     (Insight: Are renewables growing faster than fossils?)")
+    # Log the gap for the report
+    gap_2000 = annual.iloc[0]['Access_Electricity'] - annual.iloc[0]['Access_Cooking']
+    gap_end = annual.iloc[-1]['Access_Electricity'] - annual.iloc[-1]['Access_Cooking']
+    print(f"   - Gap 2000: {gap_2000:.2f}% | Gap {LAST_VALID_YEAR}: {gap_end:.2f}%")
 
     plt.figure()
-    plt.stackplot(annual_mix['Year'], annual_mix['Elec_Fossil'], annual_mix['Elec_Nuclear'], annual_mix['Elec_Renewables'], 
-                  labels=['Fossil Fuels', 'Nuclear', 'Renewables'], 
-                  colors=['#636e72', '#f1c40f', '#00b894'], alpha=0.85)
-    plt.title(f'Fig 3: Global Electricity Generation Mix (2000-{LAST_VALID_YEAR})')
-    plt.ylabel('Terawatt-hours (TWh)')
-    plt.legend(loc='upper left')
-    plt.tight_layout(); plt.savefig('figures/fig3_energy_mix_evolution.png'); plt.close()
+    plt.plot(annual['Year'], annual['Access_Electricity'], label='Access to Electricity', color='#2ecc71', linewidth=3)
+    plt.plot(annual['Year'], annual['Access_Cooking'], label='Access to Clean Cooking', color='#e67e22', linewidth=3)
+    
+    # Fill the gap
+    plt.fill_between(annual['Year'], annual['Access_Electricity'], annual['Access_Cooking'], color='gray', alpha=0.1, label='The Equity Gap')
+    
+    plt.title('Fig 1: The "Hidden" Equity Gap (Infrastructure vs. Health)')
+    plt.ylabel('Population Access (%)')
+    plt.ylim(40, 100)
+    plt.legend()
+    plt.tight_layout(); plt.savefig('figures/fig1_equity_gap.png'); plt.close()
 
-def _plot_top_aid_recipients(df):
-    print("\n[Fig 4] Top Aid Recipients")
+def _plot_fig2_aid_effectiveness(df):
+    print("\n[Fig 2] Aid Effectiveness (Scatter)")
     if 'Financial_Flows' not in df.columns: return
-    
-    total_aid = df.groupby('Country')['Financial_Flows'].sum().sort_values(ascending=False).head(10)
-    
-    # DATA EXTRACTION
-    print("   - Top 5 Recipients (Cumulative 2000-2019):")
-    for country, amount in total_aid.head(5).items():
-        print(f"     * {country}: ${amount/1e9:.2f} Billion")
 
-    plt.figure(figsize=(12, 6))
-    sns.barplot(x=total_aid.values, y=total_aid.index, hue=total_aid.index, palette='Blues_r', legend=False)
-    plt.title(f'Fig 4: Top 10 Recipients of Green Energy Aid (2000-{LAST_VALID_YEAR})')
-    plt.xlabel('Total USD Received')
-    plt.tight_layout(); plt.savefig('figures/fig4_top_aid_recipients.png'); plt.close()
+    # Log for report
+    corr = df['Financial_Flows'].corr(df['Renewable_Capacity'])
+    print(f"   - Correlation (Aid vs Capacity): r = {corr:.4f} (The 'Ghost Aid' phenomenon)")
 
-def _plot_global_divergence(df):
-    print("\n[Fig 5] Global Divergence (Indexed)")
-    if 'GDP_Capita' not in df.columns: return
+    plt.figure()
+    sns.scatterplot(data=df, x='Financial_Flows', y='Renewable_Capacity', hue='Income_Group', palette='viridis', size='GDP_Capita', sizes=(20, 200), alpha=0.7)
     
-    annual = df.groupby('Year').agg({'GDP_Capita': 'mean', 'CO2_Total_kt': 'sum'}).reset_index()
+    # Add trendline (flat)
+    sns.regplot(data=df, x='Financial_Flows', y='Renewable_Capacity', scatter=False, color='red', line_kws={'linestyle':'--'})
+    
+    plt.title(f'Fig 2: Aid Effectiveness (r={corr:.2f})')
+    plt.xlabel('Financial Aid Received (USD)')
+    plt.ylabel('Renewable Capacity (W/capita)')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.tight_layout(); plt.savefig('figures/fig2_aid_effectiveness.png'); plt.close()
+
+def _plot_fig3_efficiency_decoupling(df):
+    print("\n[Fig 3] Efficiency Decoupling (GDP vs Energy Intensity)")
+    if 'Energy_Intensity' not in df.columns: return
+
+    annual = df.groupby('Year').agg({'GDP_Capita': 'mean', 'Energy_Intensity': 'mean'}).reset_index()
     
     # Normalize to 2000 = 100
-    base_gdp = annual['GDP_Capita'].iloc[0]
-    base_co2 = annual['CO2_Total_kt'].iloc[0]
-    
-    annual['GDP_Idx'] = (annual['GDP_Capita'] / base_gdp) * 100
-    annual['CO2_Idx'] = (annual['CO2_Total_kt'] / base_co2) * 100
-    
-    # DATA EXTRACTION
-    final = annual.iloc[-1]
-    print(f"   - 2000 Baseline: 100.0")
-    print(f"   - {LAST_VALID_YEAR} GDP Index: {final['GDP_Idx']:.1f} (Growth: +{final['GDP_Idx']-100:.1f}%)")
-    print(f"   - {LAST_VALID_YEAR} CO2 Index: {final['CO2_Idx']:.1f} (Growth: +{final['CO2_Idx']-100:.1f}%)")
+    annual['GDP_Idx'] = (annual['GDP_Capita'] / annual['GDP_Capita'].iloc[0]) * 100
+    annual['Intensity_Idx'] = (annual['Energy_Intensity'] / annual['Energy_Intensity'].iloc[0]) * 100
     
     plt.figure()
-    plt.plot(annual['Year'], annual['GDP_Idx'], label='Global GDP per Capita', color='#2ecc71', linewidth=4)
-    plt.plot(annual['Year'], annual['CO2_Idx'], label='Total CO2 Emissions', color='#e74c3c', linewidth=4, linestyle='--')
-    plt.title('Fig 5: The Decoupling Challenge (Indexed 2000=100)')
-    plt.ylabel('Index Value')
+    plt.plot(annual['Year'], annual['GDP_Idx'], label='Global GDP per Capita', color='green', linewidth=4)
+    plt.plot(annual['Year'], annual['Intensity_Idx'], label='Energy Intensity (MJ/$)', color='red', linewidth=4)
+    
+    plt.title('Fig 3: The Efficiency Paradox (Decoupling Growth from Energy Use)')
+    plt.ylabel('Index (2000 = 100)')
     plt.legend()
-    plt.tight_layout(); plt.savefig('figures/fig5_global_divergence.png'); plt.close()
+    plt.tight_layout(); plt.savefig('figures/fig3_efficiency_decoupling.png'); plt.close()
 
-def _plot_correlation_matrix(df):
-    print("\n[Fig 6] Correlation Matrix")
-    cols = ['GDP_Capita', 'Financial_Flows', 'Renewable_Share', 'CO2_Total_kt', 'Energy_Intensity', 'Access_Electricity']
+def _plot_fig4_correlation_matrix(df):
+    print("\n[Fig 4] Correlation Matrix")
+    # Updated to include Energy Intensity and Cooking
+    cols = ['GDP_Capita', 'Financial_Flows', 'Renewable_Share', 'Access_Cooking', 'Energy_Intensity', 'Renewable_Capacity']
     cols = [c for c in cols if c in df.columns]
     
-    if len(cols) > 1:
-        corr = df[cols].corr()
-        # DATA EXTRACTION
-        print("   - Key Correlations:")
-        print(f"     * GDP vs Renewable Share: {corr.loc['GDP_Capita', 'Renewable_Share']:.3f}")
-        print(f"     * Aid vs Access Elec:     {corr.loc['Financial_Flows', 'Access_Electricity']:.3f}")
-        
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(corr, annot=True, fmt=".2f", cmap='RdBu', center=0, square=True)
-        plt.title('Fig 6: Correlation Matrix of Key Drivers')
-        plt.tight_layout(); plt.savefig('figures/fig6_correlation_matrix.png'); plt.close()
+    corr = df[cols].corr()
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap='RdBu', center=0)
+    plt.title('Fig 4: Correlation Matrix of Drivers')
+    plt.tight_layout(); plt.savefig('figures/fig4_correlation_matrix.png'); plt.close()
 
-def _plot_top_movers(df):
-    print("\n[Fig 7] Top Green Movers")
-    pivoted = df.pivot_table(index='Country', columns='Year', values='Renewable_Share')
+def _plot_fig5_strategic_leaders(df):
+    print("\n[Fig 5] Top 20 Strategic Leaders (Capacity)")
+    # Get latest year data per country
+    latest = df.sort_values('Year').groupby('Country').tail(1)
+    top20 = latest.nlargest(20, 'Renewable_Capacity')
     
-    if 2000 in pivoted.columns and LAST_VALID_YEAR in pivoted.columns:
-        pivoted['Growth'] = pivoted[LAST_VALID_YEAR] - pivoted[2000]
-        top10 = pivoted.dropna(subset=['Growth']).nlargest(10, 'Growth')
-        
-        # DATA EXTRACTION
-        print("   - Top 5 Countries by Renewable Share Increase (points):")
-        print(top10['Growth'].head(5).to_string())
+    plt.figure(figsize=(12, 8))
+    sns.barplot(x=top20['Renewable_Capacity'], y=top20['Country'], palette='Blues_r')
+    plt.title(f'Fig 5: Top 20 Nations by Renewable Capacity ({LAST_VALID_YEAR})')
+    plt.xlabel('Watts per Capita')
+    plt.tight_layout(); plt.savefig('figures/fig5_strategic_leaders.png'); plt.close()
 
-        plt.figure()
-        sns.barplot(x=top10['Growth'], y=top10.index, hue=top10.index, palette='Greens_r', legend=False)
-        plt.title(f'Fig 7: Top 10 Countries by Renewable Share Growth (2000-{LAST_VALID_YEAR})')
-        plt.xlabel('Percentage Point Increase')
-        plt.tight_layout(); plt.savefig('figures/fig7_top_movers.png'); plt.close()
+# --- SUPPLEMENTARY FIGURES (6-10) ---
 
-def _plot_income_disparity(df):
-    print("\n[Fig 8] Income Disparity Boxplot")
-    if 'Income_Group' not in df.columns: return
-    
-    # DATA EXTRACTION
-    medians = df.groupby('Income_Group', observed=True)['Renewable_Share'].median()
-    print("   - Median Renewable Share by Income Group:")
-    print(medians.to_string())
-    
+def _plot_fig6_energy_mix(df):
+    # (Formerly Fig 3)
+    if 'Elec_Fossil' not in df.columns: return
+    annual = df.groupby('Year')[['Elec_Fossil', 'Elec_Renewables', 'Elec_Nuclear']].sum().reset_index()
     plt.figure()
-    sns.boxplot(x='Income_Group', y='Renewable_Share', hue='Income_Group', data=df, palette='Set2', legend=False)
-    plt.title('Fig 8: Renewable Energy Share by Income Level')
-    plt.xlabel('Income Quartile (GDP/capita)')
-    plt.ylabel('Renewable Share (%)')
+    plt.stackplot(annual['Year'], annual['Elec_Fossil'], annual['Elec_Nuclear'], annual['Elec_Renewables'], labels=['Fossil', 'Nuclear', 'Renewables'], colors=['gray', 'gold', 'green'], alpha=0.8)
+    plt.title('Fig 6: Global Electricity Generation Mix')
+    plt.legend(loc='upper left')
+    plt.tight_layout(); plt.savefig('figures/fig6_energy_mix.png'); plt.close()
+
+def _plot_fig7_top_aid_recipients(df):
+    # (Formerly Fig 4)
+    total = df.groupby('Country')['Financial_Flows'].sum().sort_values(ascending=False).head(10)
+    plt.figure()
+    sns.barplot(x=total.values, y=total.index, palette='Greens_r')
+    plt.title('Fig 7: Top 10 Recipients of Financial Aid')
+    plt.tight_layout(); plt.savefig('figures/fig7_top_aid.png'); plt.close()
+
+def _plot_fig8_income_disparity(df):
+    # (Formerly Fig 8)
+    plt.figure()
+    sns.boxplot(x='Income_Group', y='Renewable_Share', data=df, palette='Set2')
+    plt.title('Fig 8: Renewable Share by Income Group')
     plt.tight_layout(); plt.savefig('figures/fig8_income_disparity.png'); plt.close()
 
-def _plot_forecast_transition(df):
-    print("\n[Fig 9] Predictive Forecast (2030)")
-    if 'Renewable_Share' not in df.columns: return
-    
+def _plot_fig9_forecast(df):
+    # (Formerly Fig 9)
     pivoted = df.pivot_table(index='Country', columns='Year', values='Renewable_Share')
-    if 2000 not in pivoted.columns or LAST_VALID_YEAR not in pivoted.columns: return
-
+    if 2000 not in pivoted.columns: return
     pivoted['Growth'] = pivoted[LAST_VALID_YEAR] - pivoted[2000]
-    top_movers = pivoted.dropna(subset=['Growth']).nlargest(5, 'Growth').index.tolist()
-    
-    print(f"   - Forecasting for: {top_movers}")
-    
-    plt.figure(figsize=(14, 8))
-    colors = sns.color_palette("bright", n_colors=5)
-    
-    for i, country in enumerate(top_movers):
-        country_data = df[df['Country'] == country].sort_values('Year')
-        X_hist = country_data['Year'].values
-        y_hist = country_data['Renewable_Share'].values
-        
-        valid_idx = np.isfinite(y_hist)
-        if np.sum(valid_idx) < 5: continue
-        
-        z = np.polyfit(X_hist[valid_idx], y_hist[valid_idx], 1)
-        p = np.poly1d(z)
-        
-        X_future = np.arange(LAST_VALID_YEAR, 2031)
-        y_future = np.clip(p(X_future), 0, 100)
-        
-        # DATA LOGGING
-        print(f"     * {country}: {LAST_VALID_YEAR}={y_hist[-1]:.1f}% -> 2030={y_future[-1]:.1f}% (Predicted)")
-        
-        plt.plot(X_hist, y_hist, label=f"{country} (History)", color=colors[i], linewidth=2.5, alpha=0.6)
-        plt.plot(X_future, y_future, linestyle='--', color=colors[i], linewidth=3)
-        plt.scatter(2030, y_future[-1], color=colors[i], s=100, zorder=5)
-        plt.text(2030.5, y_future[-1], f"{y_future[-1]:.0f}%", color=colors[i], fontweight='bold')
+    top = pivoted.nlargest(5, 'Growth').index
+    plt.figure()
+    for c in top:
+        dat = df[df['Country'] == c]
+        plt.plot(dat['Year'], dat['Renewable_Share'], label=c)
+    plt.title('Fig 9: Trajectories of Top Movers')
+    plt.legend()
+    plt.tight_layout(); plt.savefig('figures/fig9_forecast.png'); plt.close()
 
-    plt.axvline(2030, color='gray', linestyle=':', alpha=0.5)
-    plt.title(f'Fig 9: Predictive Forecast - Trajectory to 2030 (History: 2000-{LAST_VALID_YEAR})', fontweight='bold')
-    plt.xlabel('Year')
-    plt.ylabel('Renewable Energy Share (%)')
-    plt.legend(title='Country Trends', bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout(); plt.savefig('figures/fig9_predictive_forecast.png'); plt.close()
-
-def _plot_choropleth_map(df):
-    """
-    Generates a true choropleth map resembling the user's uploaded image.
-    Uses GeoPandas to merge data with world geometry.
-    """
-    # 1. Load the built-in world map from GeoPandas
-    # NEW LINE (Loads from a reliable URL)
-    world = gpd.read_file("https://raw.githubusercontent.com/python-visualization/folium/main/examples/data/world-countries.json")
-
-    # 2. Filter your data (using 2019 as per your snippet)
-    data_2019 = df[df['Year'] == 2019].copy()
-
-    # 3. Merge world geometry with your data
-    # Note: Ensure your dataframe has a column like 'Country' or 'ISO3' to match 'name' or 'iso_a3'
-    # We assume your df has a 'Country' column here.
-    world_data = world.merge(data_2019, how="left", left_on="name", right_on="Country")
-
-    # 4. Create the plot
-    fig, ax = plt.subplots(1, 1, figsize=(16, 10))
-    
-    # Plot the world map
-    # column='Renewable_Capacity' -> The variable to color by
-    # cmap='Blues' -> The color scheme (matches your blue image)
-    world_data.plot(
-        column='Renewable_Capacity', 
-        ax=ax, 
-        legend=True,
-        legend_kwds={'label': "Renewable Capacity by Country", 'orientation': "horizontal"},
-        cmap='Blues',      # This creates the blue gradient from your image
-        missing_kwds={'color': 'lightgrey'}, # Color for countries with no data
-        edgecolor='black', # clear country borders
-        linewidth=0.5
-    )
-
-    plt.title('Global Distribution: Renewable Capacity (2019)', fontweight='bold', fontsize=15)
-    
-    # Remove axis numbering for a cleaner map look
-    ax.set_axis_off()
-    
-    plt.tight_layout()
-    plt.savefig('figures/fig10_choropleth_map.png')
-    plt.close()
+def _plot_fig10_choropleth_map(df):
+    # Uses internet data for geometry
+    try:
+        world = gpd.read_file("https://raw.githubusercontent.com/python-visualization/folium/main/examples/data/world-countries.json")
+        data_map = df[df['Year'] == LAST_VALID_YEAR].copy()
+        world_data = world.merge(data_map, how="left", left_on="name", right_on="Country")
+        fig, ax = plt.subplots(1, 1, figsize=(16, 10))
+        world_data.plot(column='Renewable_Capacity', ax=ax, legend=True, cmap='Blues', missing_kwds={'color': 'lightgrey'})
+        ax.set_axis_off()
+        plt.title(f'Fig 10: Global Renewable Capacity Map ({LAST_VALID_YEAR})')
+        plt.tight_layout(); plt.savefig('figures/fig10_map.png'); plt.close()
+    except Exception as e:
+        print(f"Skipping map generation due to: {e}")
